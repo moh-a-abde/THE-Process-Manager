@@ -14,6 +14,7 @@ pub fn handle_events(input: &mut String) -> Result<EventAction, Box<dyn std::err
         if let Event::Key(key) = event::read()? {
             match key.code {
                 KeyCode::Char('q') => return Ok(EventAction::Quit),
+                
                 KeyCode::Down | KeyCode::Char('j') => return Ok(EventAction::ScrollDown),
                 KeyCode::Up | KeyCode::Char('k') => return Ok(EventAction::ScrollUp),
                 KeyCode::Char(c) => input.push(c),

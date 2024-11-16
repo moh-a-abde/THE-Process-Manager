@@ -7,36 +7,46 @@ use tui::style::{Style, Modifier, Color};
 use crate::process::data::ProcessUsage;
 use sysinfo::{System, SystemExt, ProcessorExt};
 
+// Helper function for dynamic colors based on usage
+fn usage_color(usage: f64) -> Color {
+    if usage < 50.0 {
+        Color::Green
+    } else if usage < 75.0 {
+        Color::Yellow
+    } else {
+        Color::Red
+    }
+}
 
-pub fn render_status_bar<B: Backend>(f: &mut Frame<B>, area: Rect) {
-    let status_text = "Commands: [q] Quit | [cpu/memory/ppid/state/start_time/priority] Sort | /<states> Filter | [k] Scroll Up | [j] Scroll Down";
+// Render the collapsible help section
+pub fn render_status_bar<B: Backend>(f: &mut Frame<B>, area: Rect, is_collapsed: bool) {
+    let status_text = if is_collapsed {
+        "Press [h] to expand help"
+    } else {
+        "Commands: [q] Quit | [cpu/memory/ppid/state/start_time/priority] Sort | /<states> Filter | [k] Scroll Up | [j] Scroll Down"
+    };
     
     let status_bar = Paragraph::new(status_text)
         .style(Style::default().fg(Color::Green))
         .block(Block::default().borders(Borders::ALL).title("Help"))
-        .alignment(Alignment::Left)
+        .alignment(Alignment::Center)
         .wrap(Wrap { trim: false });
     
     f.render_widget(status_bar, area);
 }
 
-// function to render system information header
+// Function to render system information header
 pub fn render_system_info<B: Backend>(f: &mut Frame<B>, area: Rect, system: &System) {
     let cpu_usage = system.processors().iter().map(|p| p.cpu_usage()).sum::<f32>() / system.processors().len() as f32;
-
     let memory_used = system.used_memory();
     let total_memory = system.total_memory();
-    let memory_percentage = (memory_used as f64 / total_memory as f64) * 100.0; // Calculate memory percentage
+    let memory_percentage = (memory_used as f64 / total_memory as f64) * 100.0;
     let uptime = system.uptime();
-
-    // CPU details
-    let cpu_frequency = system.global_processor_info().frequency(); // in MHz
+    let cpu_frequency = system.global_processor_info().frequency();
     let num_cores = system.processors().len();
-    
-    // Processes
     let num_processes = system.processes().len();
 
-    // format information
+    // Format information with highlighted section title
     let info = format!(
         "CPU Frequency: {} MHz | Cores: {} | CPU Usage: {:.2}% | Number of Processes: {}\n\
         Memory: {}/{} KB ({:.2}%) | Uptime: {}s",
@@ -44,17 +54,15 @@ pub fn render_system_info<B: Backend>(f: &mut Frame<B>, area: Rect, system: &Sys
         memory_used, total_memory, memory_percentage, uptime
     );
 
-    // create paragraph widget for system info header
     let paragraph = Paragraph::new(info)
-        .style(Style::default().fg(Color::Cyan))
+        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
         .block(Block::default().borders(Borders::ALL).title("System Information"))
         .alignment(Alignment::Center);
 
-    // render system info header
     f.render_widget(paragraph, area);
 }
 
-
+// Function to render layout with alternating row colors and dynamic CPU/memory indicators
 pub fn render_layout<B: Backend>(
     f: &mut Frame<B>,
     layout: &[Rect],
@@ -62,6 +70,7 @@ pub fn render_layout<B: Backend>(
     input: &str,
     command_output: &str,
     processes: &[ProcessUsage],
+    is_collapsed: bool,
 ) {
     let height = layout[0].height as usize - 2;
 
@@ -73,18 +82,25 @@ pub fn render_layout<B: Backend>(
 
     let rows: Vec<Row> = visible_processes
         .iter()
-        .map(|p| {
+        .enumerate()
+        .map(|(i, p)| {
             let cells = vec![
                 Cell::from(p.pid.to_string()),
                 Cell::from(p.ppid.to_string()),
                 Cell::from(p.name.clone()),
-                Cell::from(p.state.clone()),
-                Cell::from(format!("{:.2}%", p.cpu_usage)),
-                Cell::from(format!("{:.2}%", p.memory_usage)),
+                Cell::from(p.state.clone()).style(Style::default().fg(match p.state.as_str() {
+                    "Running" => Color::Green,
+                    "Sleeping" => Color::Yellow,
+                    _ => Color::Red,
+                })),
+                Cell::from(format!("{:.2}%", p.cpu_usage))
+                    .style(Style::default().fg(usage_color(p.cpu_usage as f64))),
+                Cell::from(format!("{:.2}%", p.memory_usage))
+                    .style(Style::default().fg(usage_color(p.memory_usage as f64))),
                 Cell::from(p.start_time.clone()),
                 Cell::from(p.priority.clone()),
             ];
-            Row::new(cells)
+            Row::new(cells).style(Style::default().bg(if i % 2 == 0 { Color::Black } else { Color::Black}))
         })
         .collect();
 
@@ -136,7 +152,7 @@ pub fn render_layout<B: Backend>(
 
     f.render_widget(output_text, layout[2]);
     
-    // render status bar in last layout slot
-    render_status_bar(f, layout[3]);
+    // Render status bar with collapsible help
+    render_status_bar(f, layout[3], is_collapsed);
 }
 

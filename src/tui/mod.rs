@@ -70,7 +70,7 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
                 .split(f.size());
 
             render::render_system_info(f, chunks[0], &system); // Render the system info header
-            render::render_layout(f, &chunks[1..], scroll_offset, &input, &command_output, &filtered_processes);
+            render::render_layout(f, &chunks[1..], scroll_offset, &input, &command_output, &filtered_processes, false);
         })?;
 
         // handle events
@@ -108,7 +108,6 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
                         command_output = format!("Filtered processes by states: {:?}", active_filter);
                     }
                 } else if let Ok(pid) = command.parse::<i32>() {
-                
                     // display details for process with specified PID
                     command_output = get_process_info(pid);
                 } else {
