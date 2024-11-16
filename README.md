@@ -2,7 +2,7 @@
 
 # ⚙️ **THE Process Manager**
 
-A 🦀 **Rust-based** command-line 💻 application that monitors and displays detailed 📊 process metrics. This 🛠️ tool retrieves 🧠 **CPU** and 💾 **memory usage** data for processes running on the system.
+A 🦀 **Rust-based** TUI 💻 application that monitors and displays detailed 📊 process metrics. This 🛠️ tool retrieves 🧠 **CPU** and 💾 **memory usage** data for processes running on the system.
 
 ### ✍️ **Authors**
 - Abdelrahman Elaskary
