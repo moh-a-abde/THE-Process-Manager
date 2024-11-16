@@ -27,7 +27,7 @@ pub fn render_status_bar<B: Backend>(f: &mut Frame<B>, area: Rect, is_collapsed:
     };
     
     let status_bar = Paragraph::new(status_text)
-        .style(Style::default().fg(Color::Green))
+        .style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
         .block(Block::default().borders(Borders::ALL).title("Help"))
         .alignment(Alignment::Center)
         .wrap(Wrap { trim: false });
@@ -127,7 +127,7 @@ pub fn render_layout<B: Backend>(
     f.render_widget(table, layout[0]);
 
     let input_text = Paragraph::new(format!("Input: {}", input))
-        .style(Style::default().fg(Color::Green))
+        .style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
         .block(
             Block::default()
                 .borders(Borders::ALL)
@@ -140,7 +140,7 @@ pub fn render_layout<B: Backend>(
     f.render_widget(input_text, layout[1]);
 
     let output_text = Paragraph::new(command_output)
-        .style(Style::default().fg(Color::Cyan))
+        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
         .block(
             Block::default()
                 .borders(Borders::ALL)
