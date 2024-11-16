@@ -32,6 +32,7 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
     let mut filtered_processes = processes.clone();
     let mut sort_by = String::from("none");
     let mut active_filter: Option<HashSet<char>> = None;
+    let mut is_collapsed = false;
 
     loop {
         // refresh system information
@@ -58,20 +59,40 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
 
         // draw TUI layout
         terminal.draw(|f| {
-            let chunks = Layout::default()
-                .direction(tui::layout::Direction::Vertical)
-                .constraints([
-                    Constraint::Percentage(10), // System Info Header
-                    Constraint::Percentage(50), // Processes Table
-                    Constraint::Percentage(10), // Input
-                    Constraint::Percentage(20), // Command Output
-                    Constraint::Percentage(10), // Status Bar
-                ].as_ref())
-                .split(f.size());
+    // Adjust layout constraints based on `is_collapsed`
+    let layout_constraints = if is_collapsed {
+        vec![
+            Constraint::Percentage(10), // System Info Header
+            Constraint::Percentage(50), // Processes Table
+            Constraint::Percentage(10), // Input
+            Constraint::Percentage(20), // Command Output
+            Constraint::Percentage(0),  // Status Bar (collapsed)
+        ]
+    } else {
+        vec![
+            Constraint::Percentage(10), // System Info Header
+            Constraint::Percentage(50), // Processes Table
+            Constraint::Percentage(10), // Input
+            Constraint::Percentage(20), // Command Output
+            Constraint::Percentage(10), // Status Bar (expanded)
+        ]
+    };
 
-            render::render_system_info(f, chunks[0], &system); // Render the system info header
-            render::render_layout(f, &chunks[1..], scroll_offset, &input, &command_output, &filtered_processes, false);
-        })?;
+    // Split the layout dynamically
+    let chunks = Layout::default()
+        .direction(tui::layout::Direction::Vertical)
+        .constraints(layout_constraints)
+        .split(f.size());
+
+    // Render components
+    render::render_system_info(f, chunks[0], &system); // Render the system info header
+    render::render_layout(f, &chunks[1..], scroll_offset, &input, &command_output, &filtered_processes, true);
+
+    // Only render the status bar if not collapsed
+    if !is_collapsed {
+        render::render_status_bar(f, chunks[4], is_collapsed);
+    }
+})?;
 
         // handle events
         match event::handle_events(&mut input)? {
@@ -81,6 +102,11 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
                 if scroll_offset > 0 {
                     scroll_offset -= 1;
                 }
+            }
+            event::EventAction::ToggleStatusBar => {
+
+                is_collapsed = !is_collapsed;
+
             }
             event::EventAction::ExecuteCommand(command) => {
                 if command == "cpu" || command == "memory" || command == "ppid" || command == "state" 
