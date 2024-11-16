@@ -1,3 +1,4 @@
+// import modules
 use procfs::process::*;
 use std::fs::File;
 use std::io::{self, BufRead};
@@ -9,16 +10,16 @@ use std::collections::HashSet;
 #[derive(Clone)]
 pub struct ProcessUsage {
     pub pid: i32,
-    pub ppid: i32,           // New field for Parent PID
+    pub ppid: i32,           // parent PID
     pub name: String,
-    pub cpu_usage: f64,      // Stores CPU percentage as f64
-    pub memory_usage: f64,   // Stores memory percentage as f64
-    pub state: String,       // New field for process state
-    pub start_time: String,     // New field for start time
-    pub priority: String,       // New field for priority
+    pub cpu_usage: f64,      // stores CPU percentage as f64
+    pub memory_usage: f64,   // stores memory percentage as f64
+    pub state: String,       // process state
+    pub start_time: String,    
+    pub priority: String,       
 }
 
-/// Filters a list of processes based on their state.
+// filters a list of processes based on their state.
 pub fn filter_process_info(processes: &[ProcessUsage], filter_by_states: &HashSet<char>) -> Vec<ProcessUsage> {
     processes
         .iter()

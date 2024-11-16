@@ -1,18 +1,18 @@
+// import modules
 use tui::Frame;
 use tui::backend::Backend;
 use tui::widgets::{Block, Borders, Table, Row, Cell, Paragraph, Wrap};
 use tui::layout::{Rect, Constraint, Alignment};
 use tui::style::{Style, Modifier, Color};
 use crate::process::data::ProcessUsage;
-
-// Import the necessary modules
 use sysinfo::{System, SystemExt, ProcessorExt};
+
 
 pub fn render_status_bar<B: Backend>(f: &mut Frame<B>, area: Rect) {
     let status_text = "Commands: [q] Quit | [cpu/memory/ppid/state/start_time/priority] Sort | /<states> Filter | [k] Scroll Up | [j] Scroll Down";
     
     let status_bar = Paragraph::new(status_text)
-        .style(Style::default().fg(Color::Gray))
+        .style(Style::default().fg(Color::Green))
         .block(Block::default().borders(Borders::ALL).title("Help"))
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: false });
@@ -20,7 +20,7 @@ pub fn render_status_bar<B: Backend>(f: &mut Frame<B>, area: Rect) {
     f.render_widget(status_bar, area);
 }
 
-// Function to render the system information header
+// function to render system information header
 pub fn render_system_info<B: Backend>(f: &mut Frame<B>, area: Rect, system: &System) {
     let cpu_usage = system.processors().iter().map(|p| p.cpu_usage()).sum::<f32>() / system.processors().len() as f32;
 
@@ -29,19 +29,28 @@ pub fn render_system_info<B: Backend>(f: &mut Frame<B>, area: Rect, system: &Sys
     let memory_percentage = (memory_used as f64 / total_memory as f64) * 100.0; // Calculate memory percentage
     let uptime = system.uptime();
 
-    // Format the information
+    // CPU details
+    let cpu_frequency = system.global_processor_info().frequency(); // in MHz
+    let num_cores = system.processors().len();
+    
+    // Processes
+    let num_processes = system.processes().len();
+
+    // format information
     let info = format!(
-        "CPU Usage: {:.2}% | Memory: {}/{} KB ({:.2}%) | Uptime: {}s",
-        cpu_usage, memory_used, total_memory, memory_percentage, uptime
+        "CPU Frequency: {} MHz | Cores: {} | CPU Usage: {:.2}% | Number of Processes: {}\n\
+        Memory: {}/{} KB ({:.2}%) | Uptime: {}s",
+        cpu_frequency, num_cores, cpu_usage, num_processes,
+        memory_used, total_memory, memory_percentage, uptime
     );
 
-    // Create the paragraph widget for the system info header
+    // create paragraph widget for system info header
     let paragraph = Paragraph::new(info)
-        .style(Style::default().fg(Color::White))
+        .style(Style::default().fg(Color::Cyan))
         .block(Block::default().borders(Borders::ALL).title("System Information"))
         .alignment(Alignment::Center);
 
-    // Render the system info header at the specified area
+    // render system info header
     f.render_widget(paragraph, area);
 }
 
@@ -86,7 +95,7 @@ pub fn render_layout<B: Backend>(
                 .borders(Borders::ALL)
                 .title("Processes")
                 .title_alignment(Alignment::Center)
-                .style(Style::default().fg(Color::White)),
+                .style(Style::default().fg(Color::Gray)),
         )
         .widths(&[
             Constraint::Percentage(6),
@@ -119,14 +128,15 @@ pub fn render_layout<B: Backend>(
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Command Output")
+                .title("THE Process Manager")
                 .title_alignment(Alignment::Center),
         )
         .alignment(Alignment::Left)
         .wrap(Wrap { trim: true });
 
     f.render_widget(output_text, layout[2]);
-    // Render the status bar in the last layout slot
+    
+    // render status bar in last layout slot
     render_status_bar(f, layout[3]);
 }
 
