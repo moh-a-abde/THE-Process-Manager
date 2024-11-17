@@ -120,7 +120,7 @@ pub fn render_layout<B: Backend>(
         .widths(&[
             Constraint::Percentage(8),
             Constraint::Percentage(8),
-            Constraint::Percentage(25),
+            Constraint::Percentage(27),
             Constraint::Percentage(8),
             Constraint::Percentage(8),
             Constraint::Percentage(8),
