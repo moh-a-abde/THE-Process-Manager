@@ -96,7 +96,8 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
         render::render_status_bar(f, chunks[4], is_collapsed);
     }
 })?;
-
+        
+        
         // handle events
         match event::handle_events(&mut input)? {
             event::EventAction::Quit => break,
@@ -111,6 +112,7 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
                 is_collapsed = !is_collapsed;
 
             }
+            
             event::EventAction::ExecuteCommand(command) => {
                 if command == "cpu" || command == "virtual" || command == "resident" || command == "ppid" || command == "state" 
                     || command == "start_time" || command == "priority" {
