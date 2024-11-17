@@ -1,7 +1,7 @@
 // import modules
 use tui::Frame;
 use tui::backend::Backend;
-use tui::widgets::{Block, Borders, Table, Row, Cell, Paragraph, Wrap};
+use tui::widgets::{Block, Borders, Table, Row, Cell, Paragraph, Wrap, List, ListItem};
 use tui::layout::{Rect, Constraint, Alignment};
 use tui::style::{Style, Modifier, Color};
 use crate::process::data::ProcessUsage;
@@ -23,7 +23,7 @@ pub fn render_status_bar<B: Backend>(f: &mut Frame<B>, area: Rect, is_collapsed:
     let status_text = if is_collapsed {
         "Press [h] to expand help"
     } else {
-        "Commands: [q] Quit | [cpu/memory/ppid/state/start_time/priority] Sort | /<states> Filter | [k] Scroll Up | [j] Scroll Down"
+        "Commands: [q] Quit | [cpu/virtual/resident/ppid/state/start_time/priority] Sort | /<states> Filter | [k] Scroll Up | [j] Scroll Down | [h] Toggle Help"
     };
     
     let status_bar = Paragraph::new(status_text)
@@ -76,9 +76,11 @@ pub fn render_layout<B: Backend>(
 
     let visible_processes = &processes[scroll_offset..(scroll_offset + height).min(processes.len())];
 
-    let header_cells = ["PID", "PPID", "Name", "State", "CPU %", "Memory %", "Start Time", "Priority"]
-        .iter()
-        .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
+    let header_cells = [
+        "PID", "PPID", "Name", "State", "CPU %", "Virtual %", "Resident %", "Start Time", "Priority"
+    ]
+    .iter()
+    .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)));
 
     let rows: Vec<Row> = visible_processes
         .iter()
@@ -95,12 +97,14 @@ pub fn render_layout<B: Backend>(
                 })),
                 Cell::from(format!("{:.2}%", p.cpu_usage))
                     .style(Style::default().fg(usage_color(p.cpu_usage as f64))),
-                Cell::from(format!("{:.2}%", p.memory_usage))
-                    .style(Style::default().fg(usage_color(p.memory_usage as f64))),
+                Cell::from(format!("{:.2}%", p.virtual_memory_usage))
+                    .style(Style::default().fg(usage_color(p.virtual_memory_usage))),
+                Cell::from(format!("{:.2}%", p.resident_memory_usage))
+                    .style(Style::default().fg(usage_color(p.resident_memory_usage))),
                 Cell::from(p.start_time.clone()),
                 Cell::from(p.priority.clone()),
             ];
-            Row::new(cells).style(Style::default().bg(if i % 2 == 0 { Color::Black } else { Color::Black}))
+            Row::new(cells).style(Style::default().bg(if i % 2 == 0 { Color::Black } else { Color::Black }))
         })
         .collect();
 
@@ -114,18 +118,18 @@ pub fn render_layout<B: Backend>(
                 .style(Style::default().fg(Color::Gray)),
         )
         .widths(&[
-            Constraint::Percentage(6),
+            Constraint::Percentage(8),
             Constraint::Percentage(8),
             Constraint::Percentage(25),
+            Constraint::Percentage(8),
+            Constraint::Percentage(8),
+            Constraint::Percentage(8),
+            Constraint::Percentage(8),
             Constraint::Percentage(10),
-            Constraint::Percentage(10),
-            Constraint::Percentage(10),
-            Constraint::Percentage(15),
             Constraint::Percentage(10),
         ]);
 
     f.render_widget(table, layout[0]);
-
     let input_text = Paragraph::new(format!("Input: {}", input))
         .style(Style::default().fg(Color::Green).add_modifier(Modifier::BOLD))
         .block(
@@ -139,18 +143,25 @@ pub fn render_layout<B: Backend>(
 
     f.render_widget(input_text, layout[1]);
 
-    let output_text = Paragraph::new(command_output)
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("THE Process Manager")
-                .title_alignment(Alignment::Center),
-        )
-        .alignment(Alignment::Left)
-        .wrap(Wrap { trim: true });
+    let output_items: Vec<ListItem> = command_output
+    .lines() // Split the command_output into lines
+    .map(|line| {
+        ListItem::new(line.to_string())
+            .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::ITALIC))
+    })
+    .collect();
 
-    f.render_widget(output_text, layout[2]);
+let output_list = List::new(output_items)
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("THE Process Manager")
+            .title_alignment(Alignment::Center),
+    )
+    .style(Style::default().fg(Color::Cyan))
+    .highlight_symbol(">>");
+
+f.render_widget(output_list, layout[2]);
     
     // Render status bar with collapsible help
     render_status_bar(f, layout[3], is_collapsed);

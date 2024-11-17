@@ -42,7 +42,9 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
         // apply sorting to processes
         match sort_by.as_str() {
             "cpu" => processes.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(std::cmp::Ordering::Equal)),
-            "memory" => processes.sort_by(|a, b| b.memory_usage.partial_cmp(&a.memory_usage).unwrap_or(std::cmp::Ordering::Equal)),
+            "virtual" => processes.sort_by(|a, b| b.virtual_memory_usage.partial_cmp(&a.virtual_memory_usage).unwrap_or(std::cmp::Ordering::Equal)),
+"resident" => processes.sort_by(|a, b| b.resident_memory_usage.partial_cmp(&a.resident_memory_usage).unwrap_or(std::cmp::Ordering::Equal)),
+
             "ppid" => processes.sort_by(|a, b| a.ppid.cmp(&b.ppid)),
             "state" => processes.sort_by(|a, b| a.state.cmp(&b.state)),
             "start_time" => processes.sort_by(|a, b| a.start_time.cmp(&b.start_time)),
@@ -54,12 +56,13 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
         if let Some(filter_by_states) = &active_filter {
             filtered_processes = filter_process_info(&processes, filter_by_states);
         } else {
-            filtered_processes = processes.clone(); // No filter; display all processes
+            filtered_processes = processes.clone(); // no filter; display all processes
         }
 
         // draw TUI layout
         terminal.draw(|f| {
-    // Adjust layout constraints based on `is_collapsed`
+        
+    // adjust layout constraints based on `is_collapsed`
     let layout_constraints = if is_collapsed {
         vec![
             Constraint::Percentage(10), // System Info Header
@@ -78,17 +81,17 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
         ]
     };
 
-    // Split the layout dynamically
+    // split layout dynamically
     let chunks = Layout::default()
         .direction(tui::layout::Direction::Vertical)
         .constraints(layout_constraints)
         .split(f.size());
 
-    // Render components
+    // render components
     render::render_system_info(f, chunks[0], &system); // Render the system info header
     render::render_layout(f, &chunks[1..], scroll_offset, &input, &command_output, &filtered_processes, true);
 
-    // Only render the status bar if not collapsed
+    // only render status bar if not collapsed
     if !is_collapsed {
         render::render_status_bar(f, chunks[4], is_collapsed);
     }
@@ -109,7 +112,7 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
 
             }
             event::EventAction::ExecuteCommand(command) => {
-                if command == "cpu" || command == "memory" || command == "ppid" || command == "state" 
+                if command == "cpu" || command == "virtual" || command == "resident" || command == "ppid" || command == "state" 
                     || command == "start_time" || command == "priority" {
                     
                     // sort by specified field
@@ -137,7 +140,7 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
                     // display details for process with specified PID
                     command_output = get_process_info(pid);
                 } else {
-                    command_output = "Invalid command. Please enter 'cpu', 'memory', 'ppid', 'state', 'start_time', 'priority', or '/<states>' for filtering, or valid PID.".to_string();
+                    command_output = "Invalid command. Please enter 'cpu', 'virtual', 'resident', 'ppid', 'state', 'start_time', 'priority', or '/<states>' for filtering, or valid PID.".to_string();
                 }
                 
                 input.clear();

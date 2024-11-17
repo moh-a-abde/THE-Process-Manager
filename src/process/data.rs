@@ -1,22 +1,33 @@
 // import modules
+use std::fs;
+
 use procfs::process::*;
-use std::fs::File;
+use crate::process::data::fs::File;
+//use std::fs::File;
 use std::io::{self, BufRead};
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use chrono::DateTime;
 use chrono::Local;
 use std::collections::HashSet;
 
+
+
+pub const PAGE_SIZE: u64 = 4096;
+
 #[derive(Clone)]
 pub struct ProcessUsage {
     pub pid: i32,
-    pub ppid: i32,           // parent PID
+    pub ppid: i32,
     pub name: String,
-    pub cpu_usage: f64,      // stores CPU percentage as f64
-    pub memory_usage: f64,   // stores memory percentage as f64
-    pub state: String,       // process state
-    pub start_time: String,    
-    pub priority: String,       
+    pub cpu_usage: f64,
+    pub virtual_memory_usage: f64,  // Virtual memory usage percentage
+    pub resident_memory_usage: f64, // Resident memory usage percentage
+    pub state: String,
+    pub start_time: String,
+    pub priority: String,
+    pub num_threads: i64, // Number of threads
+    pub voluntary_ctxt_switches: u64,
+    pub nonvoluntary_ctxt_switches: u64,
 }
 
 // filters a list of processes based on their state.
@@ -28,7 +39,7 @@ pub fn filter_process_info(processes: &[ProcessUsage], filter_by_states: &HashSe
         .collect()
 }
 
-fn convert_state(state: char) -> String {
+pub fn convert_state(state: char) -> String {
     match state {
         'R' => "Running".to_string(),
         'S' => "Sleeping".to_string(),
@@ -40,7 +51,7 @@ fn convert_state(state: char) -> String {
     }
 }
 
-fn convert_priority(priority: i64) -> String {
+pub fn convert_priority(priority: i64) -> String {
     match priority {
         p if p <= 0 => "High".to_string(),
         p if p <= 20 => "Normal".to_string(),
@@ -63,19 +74,27 @@ fn format_start_time(start_time_ticks: u64) -> String {
     datetime.format("%H:%M:%S").to_string()
 }
 
+fn calculate_virtual_memory_usage_percentage(process_memory: u64, total_used_memory: u64) -> f64 {
+    if total_used_memory == 0 {
+        0.0
+    } else {
+        (process_memory as f64 / total_used_memory as f64) * 100.0
+    }
+}
+
+fn calculate_resident_memory_usage_percentage(process_memory: u64, total_used_memory: u64) -> f64 {
+    if total_used_memory == 0 {
+        0.0
+    } else {
+        (process_memory as f64 / total_used_memory as f64) * 100.0
+    }
+}
+
 fn calculate_cpu_usage_percentage(process_cpu_ticks: u64, total_cpu_ticks: u64) -> f64 {
     if total_cpu_ticks == 0 {
         0.0
     } else {
         (process_cpu_ticks as f64 / total_cpu_ticks as f64) * 100.0
-    }
-}
-
-fn calculate_memory_usage_percentage(process_memory: u64, total_used_memory: u64) -> f64 {
-    if total_used_memory == 0 {
-        0.0
-    } else {
-        (process_memory as f64 / total_used_memory as f64) * 100.0
     }
 }
 
@@ -92,45 +111,78 @@ fn get_total_cpu_ticks() -> u64 {
     0
 }
 
-pub fn get_processes() -> Vec<ProcessUsage> {
-    let mut processes = Vec::new();
-    let mut total_used_memory: u64 = 0;
+pub fn parse_status_file(pid: u32) -> io::Result<(u64, u64)> {
+    let status_path = format!("/proc/{}/status", pid);
+    let file = fs::File::open(&status_path)?;
+    let reader = io::BufReader::new(file);
 
-    for process_result in all_processes().unwrap() {
-        if let Ok(process) = process_result {
-            if let Ok(stat) = process.stat() {
-                let cpu_usage = stat.utime + stat.stime;
-                let memory_usage = stat.vsize / 1024;  // Convert to KB
-                total_used_memory += memory_usage;
-                
-                // Convert fields to meaningful values
-                let ppid = stat.ppid;
-                let state = convert_state(stat.state);
-                let start_time = format_start_time(stat.starttime);
-                let priority = convert_priority(stat.priority);
+    let mut voluntary_ctxt_switches = 0;
+    let mut nonvoluntary_ctxt_switches = 0;
 
-                processes.push(ProcessUsage {
-                    pid: stat.pid,
-                    ppid,
-                    name: stat.comm.clone(),
-                    cpu_usage: cpu_usage as f64,  // Temporarily store raw CPU ticks
-                    memory_usage: memory_usage as f64,  // Temporarily store raw memory usage
-                    state,
-                    start_time,
-                    priority,
-                });
+    for line in reader.lines() {
+        let line = line?;
+        if line.starts_with("voluntary_ctxt_switches:") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() > 1 {
+                voluntary_ctxt_switches = parts[1].parse::<u64>().unwrap_or(0);
+            }
+        } else if line.starts_with("nonvoluntary_ctxt_switches:") {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() > 1 {
+                nonvoluntary_ctxt_switches = parts[1].parse::<u64>().unwrap_or(0);
             }
         }
     }
 
+    Ok((voluntary_ctxt_switches, nonvoluntary_ctxt_switches))
+}
+
+pub fn get_processes() -> Vec<ProcessUsage> {
+    let mut processes = Vec::new();
+    let mut total_virtual_used_memory: u64 = 0;
+    let mut total_resident_used_memory: u64 = 0;
     let total_cpu_ticks = get_total_cpu_ticks();
 
-    // Calculate CPU and memory percentages
+    for process_result in all_processes().unwrap() {
+        if let Ok(process) = process_result {
+            if let Ok(stat) = process.stat() {
+                let virtual_memory_usage = stat.vsize / 1024; // KB
+                let resident_memory_usage = (stat.rss * PAGE_SIZE) / 1024; // KB
+
+                total_virtual_used_memory += virtual_memory_usage;
+                total_resident_used_memory += resident_memory_usage;
+
+                let (voluntary_ctxt_switches, nonvoluntary_ctxt_switches) = parse_status_file(stat.pid as u32).unwrap_or((0, 0));
+
+                processes.push(ProcessUsage {
+    pid: stat.pid,
+    ppid: stat.ppid,
+    name: stat.comm.clone(),
+    cpu_usage: calculate_cpu_usage_percentage((stat.utime + stat.stime) as u64, total_cpu_ticks),
+    virtual_memory_usage: virtual_memory_usage as f64,
+    resident_memory_usage: resident_memory_usage as f64,
+    state: convert_state(stat.state), // Use converted state
+    start_time: format_start_time(stat.starttime),
+    priority: convert_priority(stat.priority), // Use converted priority
+    num_threads: stat.num_threads,
+    voluntary_ctxt_switches,
+    nonvoluntary_ctxt_switches,
+});
+
+            }
+        }
+    }
+
     for process in &mut processes {
-        process.cpu_usage = calculate_cpu_usage_percentage(process.cpu_usage as u64, total_cpu_ticks);
-        process.memory_usage = calculate_memory_usage_percentage(process.memory_usage as u64, total_used_memory);
+        process.virtual_memory_usage = calculate_virtual_memory_usage_percentage(
+            process.virtual_memory_usage as u64,
+            total_virtual_used_memory,
+        );
+        process.resident_memory_usage = calculate_resident_memory_usage_percentage(
+            process.resident_memory_usage as u64,
+            total_resident_used_memory,
+        );
     }
 
     processes
 }
-
