@@ -1,16 +1,10 @@
-// import modules
 use std::fs;
-
-use procfs::process::*;
-use crate::process::data::fs::File;
-//use std::fs::File;
 use std::io::{self, BufRead};
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
-use chrono::DateTime;
-use chrono::Local;
+use chrono::{DateTime, Local};
 use std::collections::HashSet;
-
-
+use procfs::process::{all_processes, Process};
+use std::fs::File;
 
 pub const PAGE_SIZE: u64 = 4096;
 
@@ -30,14 +24,11 @@ pub struct ProcessUsage {
     pub nonvoluntary_ctxt_switches: u64,
 }
 
-// filters a list of processes based on their state.
-pub fn filter_process_info(processes: &[ProcessUsage], filter_by_states: &HashSet<char>) -> Vec<ProcessUsage> {
-    processes
-        .iter()
-        .filter(|process| filter_by_states.contains(&process.state.chars().next().unwrap_or_default()))
-        .cloned()
-        .collect()
+// Function to filter processes by selected states
+pub fn filter_process_info(processes: &[ProcessUsage], selected_states: &HashSet<String>) -> Vec<ProcessUsage> {
+    processes.iter().filter(|&process| selected_states.contains(&process.state)).cloned().collect()
 }
+
 
 pub fn convert_state(state: char) -> String {
     match state {
@@ -184,5 +175,61 @@ pub fn get_processes() -> Vec<ProcessUsage> {
         );
     }
 
+    processes
+}
+pub fn get_process_info(pid: i32) -> String {
+    match Process::new(pid) {
+        Ok(process) => {
+            match process.stat() {
+                Ok(stat) => {
+                    let (voluntary_ctxt_switches, nonvoluntary_ctxt_switches) =
+                        parse_status_file(stat.pid as u32).unwrap_or((0, 0));
+
+                    let process_usage = ProcessUsage {
+                        pid: stat.pid,
+                        ppid: stat.ppid,
+                        name: stat.comm.clone(),
+                        cpu_usage: (stat.utime + stat.stime) as f64,
+                        virtual_memory_usage: (stat.vsize / 1024) as f64, // KB
+                        resident_memory_usage: ((stat.rss * PAGE_SIZE) / 1024) as f64, // KB
+                        state: stat.state.to_string(),
+                        start_time: "N/A".to_string(),
+                        priority: stat.priority.to_string(),
+                        num_threads: stat.num_threads,
+                        voluntary_ctxt_switches,
+                        nonvoluntary_ctxt_switches,
+                    };
+
+                    format!(
+                        "PID: {}\nCommand: {}\nState: {}\nCPU Usage: {} ticks\nVirtual Memory: {} KB\nResident Memory: {} KB\nThreads: {}\nVoluntary Context Switches: {}\nNonvoluntary Context Switches: {}",
+                        process_usage.pid,
+                        process_usage.name,
+                        process_usage.state,
+                        process_usage.cpu_usage,
+                        process_usage.virtual_memory_usage,
+                        process_usage.resident_memory_usage,
+                        process_usage.num_threads,
+                        process_usage.voluntary_ctxt_switches,
+                        process_usage.nonvoluntary_ctxt_switches,
+                    )
+                }
+                Err(e) => format!("Failed to get stat for process {}: {:?}", pid, e),
+            }
+        }
+        Err(e) => format!("Failed to find process with PID {}: {:?}", pid, e),
+    }
+}
+
+// Sort processes by CPU usage in descending order
+pub fn sort_processes_by_cpu() -> Vec<ProcessUsage> {
+    let mut processes = get_processes(); // Get all processes
+    processes.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap()); // Sort by CPU usage
+    processes
+}
+
+// Sort processes by memory usage in descending order
+pub fn sort_processes_by_memory() -> Vec<ProcessUsage> {
+    let mut processes = get_processes(); // Get all processes
+    processes.sort_by(|a, b| b.virtual_memory_usage.partial_cmp(&a.virtual_memory_usage).unwrap()); // Sort by memory usage
     processes
 }

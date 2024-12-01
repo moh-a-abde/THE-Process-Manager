@@ -1,14 +1,26 @@
-use crossterm::terminal::{enable_raw_mode, disable_raw_mode};
-use crate::tui::init_terminal;
-use crate::tui::main_loop;
+use gtk::prelude::*;
+use gtk::{Application, ApplicationWindow};
 
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
-    enable_raw_mode()?;
-    let mut terminal = init_terminal()?;
-
-    main_loop(&mut terminal)?;
-
-    disable_raw_mode()?;
+    run_gui();
     Ok(())
 }
 
+fn run_gui() {
+    let app = Application::builder()
+        .application_id("com.malak.the_process_manager")
+        .build();
+
+    app.connect_activate(|app| {
+        let window = ApplicationWindow::builder()
+            .application(app)
+            .title("Task Manager")
+            .default_width(800)
+            .default_height(600)
+            .build();
+
+        window.show();
+    });
+
+    app.run();
+}

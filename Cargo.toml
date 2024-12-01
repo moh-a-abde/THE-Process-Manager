@@ -13,6 +13,9 @@ tui = "0.19"
 crossterm = "0.26"
 sysinfo = "0.21"
 chrono = "0.4"
+gtk = "0.18.1"
+glib = "0.18"
+clap = { version = "4.0", features = ["derive"] }
 
 [package.metadata.deb]
 maintainer = "Mohamed Abdel-Hamid <moh.aymann@aucegypt.edu>"

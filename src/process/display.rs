@@ -1,7 +1,6 @@
 use procfs::process::Process;
-use crate::process::data::{PAGE_SIZE, parse_status_file, ProcessUsage};
-
-pub fn get_process_info(pid: i32) -> String {
+use crate::process::data::*;
+pub fn get_process_info(pid: i32) -> String {  // Modify the signature to accept pid
     match Process::new(pid) {
         Ok(process) => {
             match process.stat() {
@@ -9,7 +8,6 @@ pub fn get_process_info(pid: i32) -> String {
                     let (voluntary_ctxt_switches, nonvoluntary_ctxt_switches) =
                         parse_status_file(stat.pid as u32).unwrap_or((0, 0));
 
-                    // Construct a ProcessUsage instance for better abstraction
                     let process_usage = ProcessUsage {
                         pid: stat.pid,
                         ppid: stat.ppid,
@@ -18,7 +16,7 @@ pub fn get_process_info(pid: i32) -> String {
                         virtual_memory_usage: (stat.vsize / 1024) as f64, // KB
                         resident_memory_usage: ((stat.rss * PAGE_SIZE) / 1024) as f64, // KB
                         state: stat.state.to_string(),
-                        start_time: "N/A".to_string(), // Update with actual start time if required
+                        start_time: "N/A".to_string(),
                         priority: stat.priority.to_string(),
                         num_threads: stat.num_threads,
                         voluntary_ctxt_switches,
@@ -44,4 +42,3 @@ pub fn get_process_info(pid: i32) -> String {
         Err(e) => format!("Failed to find process with PID {}: {:?}", pid, e),
     }
 }
-
