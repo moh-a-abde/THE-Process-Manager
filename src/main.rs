@@ -8,11 +8,13 @@ use std::cell::RefCell;  // Needed to mutate `grid` safely
 mod process;
 use crate::process::data::*;
 
-// Function to apply a CSS style based on the color passed
+// Updated Function to Apply a CSS Style Based on the Color Passed
 fn apply_color_style(widget: &impl IsA<gtk::Widget>, color: &str) {
     let provider = gtk::CssProvider::new();
     let css = format!("label {{ color: {}; }}", color);
-    provider.load_from_data(css.as_bytes()).expect("Failed to load CSS data");
+    provider
+        .load_from_data(css.as_bytes())
+        .expect("Failed to load CSS data");
     gtk::StyleContext::add_provider(
         &widget.style_context(),
         &provider,
@@ -107,58 +109,60 @@ scroll_window.add(&*grid_ref);  // Add it to the window
             dialog.close();
         }
     });
+    
+// Updated `button_all` Click Event
+let button_all = Button::with_label("Get All Processes");
+button_all.connect_clicked({
+    let grid = Rc::clone(&grid);
+    move |_| {
+        clear_grid(&grid);
+        let processes = get_processes();
 
-     let button_all = Button::with_label("Get All Processes");
-    button_all.connect_clicked({
-        let grid = Rc::clone(&grid);  
-        move |_| {
-            clear_grid(&grid);
-            let processes = get_processes(); 
+        // Add headers
+        grid.borrow_mut().attach(&Label::new(Some("PID")), 0, 0, 1, 1);
+        grid.borrow_mut().attach(&Label::new(Some("Name")), 1, 0, 1, 1);
+        grid.borrow_mut().attach(&Label::new(Some("State")), 2, 0, 1, 1);
+        grid.borrow_mut().attach(&Label::new(Some("CPU %")), 3, 0, 1, 1);
+        grid.borrow_mut().attach(&Label::new(Some("Virtual Mem (KB)")), 4, 0, 1, 1);
+        grid.borrow_mut().attach(&Label::new(Some("Resident Mem (KB)")), 5, 0, 1, 1);
 
-            // Add headers
-            grid.borrow_mut().attach(&Label::new(Some("PID")), 0, 0, 1, 1);
-            grid.borrow_mut().attach(&Label::new(Some("Name")), 1, 0, 1, 1);
-            grid.borrow_mut().attach(&Label::new(Some("State")), 2, 0, 1, 1);
-            grid.borrow_mut().attach(&Label::new(Some("CPU %")), 3, 0, 1, 1);
-            grid.borrow_mut().attach(&Label::new(Some("Virtual Mem (KB)")), 4, 0, 1, 1);
-            grid.borrow_mut().attach(&Label::new(Some("Resident Mem (KB)")), 5, 0, 1, 1);
+        // Populate rows with process data
+        for (i, process) in processes.iter().enumerate() {
+            let pid_label = Label::new(Some(&process.pid.to_string()));
+            apply_color_style(&pid_label, "White"); // Default color for PID
+            grid.borrow_mut().attach(&pid_label, 0, (i + 1) as i32, 1, 1);
 
-            // Populate rows with process data
-            for (i, process) in processes.iter().enumerate() {
-                let pid_label = Label::new(Some(&process.pid.to_string()));
-                apply_color_style(&pid_label, "red"); 
-                grid.borrow_mut().attach(&pid_label, 0, (i + 1) as i32, 1, 1);
+            let name_label = Label::new(Some(&process.name));
+            apply_color_style(&name_label, "white"); // Default color for name
+            grid.borrow_mut().attach(&name_label, 1, (i + 1) as i32, 1, 1);
 
-                let name_label = Label::new(Some(&process.name));
-                apply_color_style(&name_label, "red");
-                grid.borrow_mut().attach(&name_label, 1, (i + 1) as i32, 1, 1);
+            let state_label = Label::new(Some(&process.state));
+            // Apply color based on process state
+            let state_color = match process.state.as_str() {
+                "Running" => "green",   // Green for Running
+                "Sleeping" => "gray",   // Gray for Sleeping
+                "Idle" => "blue",       // Blue for Idle
+                _ => "white",           // Default color
+            };
+            apply_color_style(&state_label, state_color);
+            grid.borrow_mut().attach(&state_label, 2, (i + 1) as i32, 1, 1);
 
-                let state_label = Label::new(Some(&process.state));
-                // Apply color based on process state
-                let state_color = match process.state.as_str() {
-                    "Sleeping" => "red",   // Red for Sleeping
-                    "Idle" => "blue",      // Blue for Idle
-                    _ => "black",          // Default color
-                };
-                apply_color_style(&state_label, state_color);
-                grid.borrow_mut().attach(&state_label, 2, (i + 1) as i32, 1, 1);
+            let cpu_label = Label::new(Some(&format!("{:.2}", process.cpu_usage)));
+            apply_color_style(&cpu_label, "white"); // Default color for CPU usage
+            grid.borrow_mut().attach(&cpu_label, 3, (i + 1) as i32, 1, 1);
 
-                let cpu_label = Label::new(Some(&format!("{:.2}", process.cpu_usage)));
-                apply_color_style(&cpu_label, "red");
-                grid.borrow_mut().attach(&cpu_label, 3, (i + 1) as i32, 1, 1);
+            let virtual_mem_label = Label::new(Some(&format!("{:.2}", process.virtual_memory_usage)));
+            apply_color_style(&virtual_mem_label, "white"); // Default color for Virtual Memory
+            grid.borrow_mut().attach(&virtual_mem_label, 4, (i + 1) as i32, 1, 1);
 
-                let virtual_mem_label = Label::new(Some(&format!("{:.2}", process.virtual_memory_usage)));
-                apply_color_style(&virtual_mem_label, "red");
-                grid.borrow_mut().attach(&virtual_mem_label, 4, (i + 1) as i32, 1, 1);
-
-                let resident_mem_label = Label::new(Some(&format!("{:.2}", process.resident_memory_usage)));
-                apply_color_style(&resident_mem_label, "red");
-                grid.borrow_mut().attach(&resident_mem_label, 5, (i + 1) as i32, 1, 1);
-            }
-
-            grid.borrow_mut().show_all(); 
+            let resident_mem_label = Label::new(Some(&format!("{:.2}", process.resident_memory_usage)));
+            apply_color_style(&resident_mem_label, "wh"); // Default color for Resident Memory
+            grid.borrow_mut().attach(&resident_mem_label, 5, (i + 1) as i32, 1, 1);
         }
-    });
+
+        grid.borrow_mut().show_all();
+    }
+});
 
 
     // Sort processes button
