@@ -1,4 +1,4 @@
-![Screenshot-v1](./v1.png)
+![Screenshot-v1](./v2.png)
 
 # ⚙️ **THE Process Manager**
 
