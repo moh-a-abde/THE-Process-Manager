@@ -14,6 +14,7 @@ use sysinfo::{System, SystemExt};
 use std::collections::HashSet;
 
 use crate::process::data::filter_process_info;
+use crate::process::data::kill_process;
 
 
 
@@ -43,8 +44,7 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
         match sort_by.as_str() {
             "cpu" => processes.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(std::cmp::Ordering::Equal)),
             "virtual" => processes.sort_by(|a, b| b.virtual_memory_usage.partial_cmp(&a.virtual_memory_usage).unwrap_or(std::cmp::Ordering::Equal)),
-"resident" => processes.sort_by(|a, b| b.resident_memory_usage.partial_cmp(&a.resident_memory_usage).unwrap_or(std::cmp::Ordering::Equal)),
-
+            "resident" => processes.sort_by(|a, b| b.resident_memory_usage.partial_cmp(&a.resident_memory_usage).unwrap_or(std::cmp::Ordering::Equal)),
             "ppid" => processes.sort_by(|a, b| a.ppid.cmp(&b.ppid)),
             "state" => processes.sort_by(|a, b| a.state.cmp(&b.state)),
             "start_time" => processes.sort_by(|a, b| a.start_time.cmp(&b.start_time)),
@@ -61,43 +61,41 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
 
         // draw TUI layout
         terminal.draw(|f| {
-        
-    // adjust layout constraints based on `is_collapsed`
-    let layout_constraints = if is_collapsed {
-        vec![
-            Constraint::Percentage(10), // System Info Header
-            Constraint::Percentage(50), // Processes Table
-            Constraint::Percentage(10), // Input
-            Constraint::Percentage(20), // Command Output
-            Constraint::Percentage(0),  // Status Bar (collapsed)
-        ]
-    } else {
-        vec![
-            Constraint::Percentage(10), // System Info Header
-            Constraint::Percentage(50), // Processes Table
-            Constraint::Percentage(10), // Input
-            Constraint::Percentage(20), // Command Output
-            Constraint::Percentage(10), // Status Bar (expanded)
-        ]
-    };
+            // adjust layout constraints based on `is_collapsed`
+            let layout_constraints = if is_collapsed {
+                vec![
+                    Constraint::Percentage(10), // System Info Header
+                    Constraint::Percentage(50), // Processes Table
+                    Constraint::Percentage(10), // Input
+                    Constraint::Percentage(20), // Command Output
+                    Constraint::Percentage(0),  // Status Bar (collapsed)
+                ]
+            } else {
+                vec![
+                    Constraint::Percentage(10), // System Info Header
+                    Constraint::Percentage(50), // Processes Table
+                    Constraint::Percentage(10), // Input
+                    Constraint::Percentage(20), // Command Output
+                    Constraint::Percentage(10), // Status Bar (expanded)
+                ]
+            };
 
-    // split layout dynamically
-    let chunks = Layout::default()
-        .direction(tui::layout::Direction::Vertical)
-        .constraints(layout_constraints)
-        .split(f.size());
+            // split layout dynamically
+            let chunks = Layout::default()
+                .direction(tui::layout::Direction::Vertical)
+                .constraints(layout_constraints)
+                .split(f.size());
 
-    // render components
-    render::render_system_info(f, chunks[0], &system); // Render the system info header
-    render::render_layout(f, &chunks[1..], scroll_offset, &input, &command_output, &filtered_processes, true);
+            // render components
+            render::render_system_info(f, chunks[0], &system); // Render the system info header
+            render::render_layout(f, &chunks[1..], scroll_offset, &input, &command_output, &filtered_processes, true);
 
-    // only render status bar if not collapsed
-    if !is_collapsed {
-        render::render_status_bar(f, chunks[4], is_collapsed);
-    }
-})?;
-        
-        
+            // only render status bar if not collapsed
+            if !is_collapsed {
+                render::render_status_bar(f, chunks[4], is_collapsed);
+            }
+        })?;
+
         // handle events
         match event::handle_events(&mut input)? {
             event::EventAction::Quit => break,
@@ -108,15 +106,11 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
                 }
             }
             event::EventAction::ToggleStatusBar => {
-
                 is_collapsed = !is_collapsed;
-
             }
-            
             event::EventAction::ExecuteCommand(command) => {
                 if command == "cpu" || command == "virtual" || command == "resident" || command == "ppid" || command == "state" 
                     || command == "start_time" || command == "priority" {
-                    
                     // sort by specified field
                     sort_by = command.clone();
                     command_output = format!("Sorting processes by {}", command);
@@ -133,7 +127,6 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
                         command_output = "Invalid input! Please enter valid states like '/IS' or '/RZ'.".to_string();
                         active_filter = None; // clear any active filter
                     } else {
-                    
                         // set active filter
                         active_filter = Some(filter_by_states);
                         command_output = format!("Filtered processes by states: {:?}", active_filter);
@@ -141,10 +134,24 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
                 } else if let Ok(pid) = command.parse::<i32>() {
                     // display details for process with specified PID
                     command_output = get_process_info(pid);
+                } else if command.starts_with("end ") {
+                    // handle kill command
+                    if let Some(pid_str) = command.split_whitespace().nth(1) {
+                        if let Ok(pid) = pid_str.parse::<i32>() {
+                            match kill_process(pid) {
+                                Ok(_) => command_output = format!("Successfully killed process with PID: {}", pid),
+                                Err(err) => command_output = format!("Failed to kill process: {}", err),
+                            }
+                        } else {
+                            command_output = "Invalid PID for kill command.".to_string();
+                        }
+                    } else {
+                        command_output = "Please provide a PID to kill.".to_string();
+                    }
                 } else {
-                    command_output = "Invalid command. Please enter 'cpu', 'virtual', 'resident', 'ppid', 'state', 'start_time', 'priority', or '/<states>' for filtering, or valid PID.".to_string();
+                    command_output = "Invalid command. Please enter 'cpu', 'virtual', 'resident', 'ppid', 'state', 'start_time', 'priority', or '/<states>' for filtering, or end <PID> to kill process, or valid PID.".to_string();
                 }
-                
+
                 input.clear();
             }
             event::EventAction::None => {}
@@ -153,4 +160,3 @@ pub fn main_loop(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result<()
 
     Ok(())
 }
-
