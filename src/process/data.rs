@@ -9,7 +9,8 @@ use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use chrono::DateTime;
 use chrono::Local;
 use std::collections::HashSet;
-
+use nix::unistd::Pid;
+use nix::sys::signal::{kill, Signal};
 
 
 pub const PAGE_SIZE: u64 = 4096;
@@ -30,6 +31,21 @@ pub struct ProcessUsage {
     pub nonvoluntary_ctxt_switches: u64,
 }
 
+/// Function to kill a process by its PID.
+pub fn kill_process(pid: i32) -> Result<(), String> {
+    let process_pid = Pid::from_raw(pid);
+
+    match kill(process_pid, Signal::SIGKILL) {
+        Ok(_) => {
+            println!("Successfully killed process with PID: {}", pid);
+            Ok(())
+        }
+        Err(err) => {
+            eprintln!("Failed to kill process with PID: {}. Error: {:?}", pid, err);
+            Err(format!("Error killing process: {:?}", err))
+        }
+    }
+}
 // filters a list of processes based on their state.
 pub fn filter_process_info(processes: &[ProcessUsage], filter_by_states: &HashSet<char>) -> Vec<ProcessUsage> {
     processes
